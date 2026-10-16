@@ -1,0 +1,91 @@
+title Minimal Room
+author Development
+
+require_player_movement
+sprite Player assets/minimal/player.png
+sprite Player assets/minimal/player_idle.png anim=idle frames=3
+sprite Box assets/minimal/box.png anim=still
+
+========
+OBJECTS
+========
+
+Floor
+lightgreen
+
+Wall
+brown
+
+Goal
+yellow
+.....
+..0..
+.000.
+..0..
+.....
+
+Box
+orange
+00000
+0...0
+0...0
+0...0
+00000
+
+Player
+blue white
+.000.
+.111.
+00000
+.000.
+.0.0.
+
+=======
+LEGEND
+=======
+
+. = Floor
+# = Wall
+P = Player
+B = Box
+G = Goal
+* = Box and Goal
+Background = Floor
+
+=======
+SOUNDS
+=======
+
+================
+COLLISIONLAYERS
+================
+
+Floor
+Goal
+Player, Wall, Box
+
+======
+RULES
+======
+
+[ > Player | Box ] -> [ > Player | > Box ]
+
+==============
+WINCONDITIONS
+==============
+
+All Goal on Box
+
+=======
+LEVELS
+=======
+
+#########
+#.......#
+#.......#
+#.......#
+#..GBP..#
+#.......#
+#.......#
+#.......#
+#########

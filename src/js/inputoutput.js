@@ -768,6 +768,7 @@ function checkKey(e, justPressed) {
 				//undo
 				if (textMode === false) {
 					pushInput("undo");
+					cancelSpriteMotion();
 					DoUndo(false, true);
 					canvasResize(); // calls redraw
 					return prevent(e);
@@ -779,6 +780,7 @@ function checkKey(e, justPressed) {
 				if (textMode === false) {
 					if (justPressed) {
 						pushInput("restart");
+						cancelSpriteMotion();
 						DoRestart();
 						canvasResize(); // calls redraw
 						return prevent(e);
@@ -789,6 +791,7 @@ function checkKey(e, justPressed) {
 		case 27://escape
 			{
 				if (titleScreen === false) {
+					cancelSpriteMotion();
 					goToTitleScreen();
 					tryPlayTitleSound();
 					canvasResize();
@@ -807,6 +810,7 @@ function checkKey(e, justPressed) {
 						}
 					}
 					levelEditorOpened = !levelEditorOpened;
+					cancelSpriteMotion();
 					if (levelEditorOpened === false) {
 						printLevel();
 					}
@@ -934,15 +938,17 @@ function checkKey(e, justPressed) {
 				}
 			}
 		}
+	} else if (typeof spriteLayerIsSliding === 'function' && spriteLayerIsSliding() && !levelEditorOpened && inputdir >= 0) {
+		if (!(inputdir === 4 && ('noaction' in state.metadata)) && (inputdir !== 4 || justPressed)) {
+			spriteLayerQueueDir(inputdir);
+		}
 	} else {
 		if (!againing && inputdir >= 0) {
 			if (inputdir === 4 && ('noaction' in state.metadata)) {
 
 			} else {
 				pushInput(inputdir);
-				if (processInput(inputdir)) {
-					redraw();
-				}
+				presentCommittedTurn(inputdir);
 			}
 		}
 	}
@@ -966,14 +972,33 @@ function update() {
 			redraw();
 		}
 	}
-	if (againing) {
+	let spriteSlideFinished = false;
+	if (typeof spriteLayerIsSliding === 'function' && spriteLayerIsSliding()) {
+		spriteSlideFinished = spriteLayerAdvance(deltatime) === true;
+	}
+	if (againing && !spriteMotionBusy()) {
 		if (timer > againinterval && messagetext.length == 0) {
-			if (processInput(-1)) {
-				redraw();
-				keyRepeatTimer = 0;
-				autotick = 0;
-			}
+			presentCommittedTurn(-1);
+			keyRepeatTimer = 0;
+			autotick = 0;
 		}
+	}
+	if (!spriteMotionBusy()) {
+		tryFlushSpriteInput();
+	}
+	if (spriteSlideFinished && !spriteMotionBusy() && !againing && !winning && !textMode && !levelEditorOpened) {
+		continueHeldSpriteMove();
+	}
+	if (typeof spriteLayerIsSliding === 'function' && spriteLayerIsSliding()) {
+		if (!spriteSlideFinished) {
+			redraw();
+		}
+	} else if (spriteSlideFinished) {
+		redraw();
+	}
+	if (!spriteMotionBusy() && typeof spriteLayerNeedsIdleRedraw === 'function' && spriteLayerNeedsIdleRedraw()) {
+		spriteLayerAdvanceIdle(deltatime);
+		redraw();
 	}
 	if (quittingMessageScreen) {
 		if (timer / 1000 > 0.15) {
@@ -1013,16 +1038,106 @@ function update() {
 		}
 	}
 
-	if (autotickinterval > 0 && !textMode && !levelEditorOpened && !againing && !winning) {
+	if (autotickinterval > 0 && !textMode && !levelEditorOpened && !againing && !winning && !spriteMotionBusy()) {
 		autotick += deltatime;
 		if (autotick > autotickinterval) {
 			autotick = 0;
 			pushInput("tick");
-			if (processInput(-1)) {
-				redraw();
-			}
+			presentCommittedTurn(-1);
 		}
 	}
+}
+
+function spriteMotionBusy() {
+	return typeof spriteLayerIsSliding === 'function' && spriteLayerIsSliding();
+}
+
+function cancelSpriteMotion() {
+	if (typeof spriteLayerSnap === 'function') {
+		spriteLayerSnap();
+	}
+}
+
+function presentCommittedTurn(dir) {
+	if (typeof spriteLayerCapture !== 'function') {
+		if (processInput(dir)) {
+			redraw();
+		}
+		return;
+	}
+	const before = spriteLayerCapture();
+	if (!processInput(dir)) {
+		return;
+	}
+	if (textMode || levelEditorOpened || diffToVisualize !== null) {
+		spriteLayerSnap();
+		redraw();
+		return;
+	}
+	spriteLayerCommit(before);
+	redraw();
+}
+
+function keyCodeToMovementDir(keyCode) {
+	switch (keyCode) {
+		case 38://up
+		case 87://w
+			return 0;
+		case 37://left
+		case 65://a
+			return 1;
+		case 40://down
+		case 83://s
+			return 2;
+		case 39://right
+		case 68://d
+			return 3;
+		default:
+			return -1;
+	}
+}
+
+function heldMovementDir() {
+	if (keybuffer.length === 0) {
+		return -1;
+	}
+	const current = keyCodeToMovementDir(keybuffer[keyRepeatIndex]);
+	if (current >= 0) {
+		return current;
+	}
+	for (let i = keybuffer.length - 1; i >= 0; i--) {
+		const dir = keyCodeToMovementDir(keybuffer[i]);
+		if (dir >= 0) {
+			return dir;
+		}
+	}
+	return -1;
+}
+
+// A held direction used to wait out key_repeat_interval after every slide,
+// which left the walker standing between steps. The slide itself is the pace.
+function continueHeldSpriteMove() {
+	const dir = heldMovementDir();
+	if (dir < 0) {
+		return;
+	}
+	pushInput(dir);
+	presentCommittedTurn(dir);
+}
+
+function tryFlushSpriteInput() {
+	if (typeof spriteLayerTakeQueuedDir !== 'function') {
+		return;
+	}
+	if (spriteMotionBusy() || againing || winning || textMode || levelEditorOpened) {
+		return;
+	}
+	const dir = spriteLayerTakeQueuedDir();
+	if (dir < 0) {
+		return;
+	}
+	pushInput(dir);
+	presentCommittedTurn(dir);
 }
 
 let prevTimestamp;

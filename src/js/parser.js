@@ -102,6 +102,107 @@ function logError(str, lineNumber, urgent) {
     logIssue(str, lineNumber, urgent, 'errorText', true, true);
 }
 
+function copySpriteLink(link) {
+    return {
+        name: link.name,
+        url: link.url,
+        animation: link.animation,
+        frameWidth: link.frameWidth,
+        frameHeight: link.frameHeight,
+        frames: link.frames,
+        scale: link.scale,
+        bright: link.bright,
+        directionRows: link.directionRows ? link.directionRows.slice() : null,
+        lineNumber: link.lineNumber
+    };
+}
+
+// sprite Player assets/player.png [frame=16|frame=16x16] [frames=4] [scale=1] [bright=1] [anim=walk] [rows=up,left,down,right]
+// A second line with anim=idle (or any other name) attaches another clip to the same object.
+function parseSpritePreludeLine(state, text) {
+    if (!state.spriteLinks) {
+        state.spriteLinks = [];
+    }
+    const parts = text.split(/\s+/);
+    if (parts.length < 2) {
+        logError('A sprite line needs an object name and a URL.', state.lineNumber);
+        return;
+    }
+    const link = {
+        name: parts[0].toLowerCase(),
+        url: parts[1],
+        animation: 'walk',
+        frameWidth: 16,
+        frameHeight: 16,
+        frames: 0,
+        scale: 1,
+        bright: 1,
+        directionRows: null,
+        lineNumber: state.lineNumber
+    };
+    for (let i = 2; i < parts.length; i++) {
+        const eq = parts[i].indexOf('=');
+        if (eq <= 0) {
+            logWarning('Ignoring "' + parts[i] + '" on a sprite line. Options look like frame=16 or anim=idle.', state.lineNumber);
+            continue;
+        }
+        const key = parts[i].slice(0, eq).toLowerCase();
+        const value = parts[i].slice(eq + 1);
+        if (key === 'anim' || key === 'animation') {
+            link.animation = value.toLowerCase();
+        } else if (key === 'frame') {
+            const dims = value.toLowerCase().split('x');
+            const fw = parseInt(dims[0], 10);
+            const fh = dims.length > 1 ? parseInt(dims[1], 10) : fw;
+            if (!(fw > 0) || !(fh > 0)) {
+                logWarning('Sprite frame size "' + value + '" should be a positive number, or widthxheight.', state.lineNumber);
+            } else {
+                link.frameWidth = fw;
+                link.frameHeight = fh;
+            }
+        } else if (key === 'frames') {
+            const frameCount = parseInt(value, 10);
+            if (!(frameCount > 0)) {
+                logWarning('Sprite frame count "' + value + '" should be a positive number.', state.lineNumber);
+            } else {
+                link.frames = frameCount;
+            }
+        } else if (key === 'scale') {
+            const scale = parseFloat(value);
+            if (!(scale > 0) || scale === Infinity) {
+                logWarning('Sprite scale "' + value + '" should be a positive number. 1 is the normal speed, 2 holds each frame twice as long.', state.lineNumber);
+            } else {
+                link.scale = scale;
+            }
+        } else if (key === 'bright') {
+            const bright = parseFloat(value);
+            if (!(bright >= 0) || bright === Infinity) {
+                logWarning('Sprite bright "' + value + '" should be a number that is zero or greater. 1 leaves the colors alone, 0.5 halves each channel.', state.lineNumber);
+            } else {
+                link.bright = bright;
+            }
+        } else if (key === 'rows') {
+            const rows = value.toLowerCase().split(',');
+            if (rows.length === 0 || rows.indexOf('') !== -1) {
+                logWarning('Sprite rows "' + value + '" should be directions separated by commas, like up,left,down,right.', state.lineNumber);
+            } else {
+                link.directionRows = rows;
+            }
+        } else {
+            logWarning('Unknown sprite option "' + key + '".', state.lineNumber);
+        }
+    }
+    for (let j = 0; j < state.spriteLinks.length; j++) {
+        const prev = state.spriteLinks[j];
+        if (prev.name === link.name && prev.animation === link.animation) {
+            logWarning('Sprite "' + link.animation + '" for "' + link.name + '" was already set on line ' + prev.lineNumber + '. Using this later line.', state.lineNumber);
+            state.spriteLinks[j] = link;
+            return;
+        }
+    }
+    state.spriteLinks.push(link);
+}
+
 function logWarning(str, lineNumber, urgent) {
     if (lineNumber === undefined) {
         return logWarningNoLine(str, urgent);
@@ -509,6 +610,7 @@ let codeMirrorFn = function () {
 
                 metadata: state.metadata.slice(),
                 metadata_lines: Object.assign({}, state.metadata_lines),
+                spriteLinks: (state.spriteLinks || []).map(copySpriteLink),
 
                 levels: levelsCopy,
 
@@ -1416,6 +1518,17 @@ let codeMirrorFn = function () {
                                         }
                                         state.tokenIndex = 1;
                                         return 'METADATA';
+                                    } else if (token === 'sprite') {
+                                        // Keep the original case so a URL is not lowercased.
+                                        stream.string = mixedCase;
+                                        let spriteRest = stream.match(reg_notcommentstart, true);
+                                        if (spriteRest === null || spriteRest[0].trim().length === 0) {
+                                            logError('A sprite line needs an object name and a URL.', state.lineNumber);
+                                        } else {
+                                            parseSpritePreludeLine(state, spriteRest[0].trim());
+                                        }
+                                        state.tokenIndex = 1;
+                                        return 'METADATA';
                                     } else if (metadata_no_value.includes(token)) {
                                         state.metadata.push(token);
                                         state.metadata.push("true");
@@ -1522,6 +1635,7 @@ let codeMirrorFn = function () {
                 winconditions: [],
                 metadata: [],
                 metadata_lines: {},
+                spriteLinks: [],
 
                 original_case_names: {},
                 original_line_numbers: {},

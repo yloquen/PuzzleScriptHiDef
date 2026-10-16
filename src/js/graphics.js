@@ -402,11 +402,21 @@ function redraw() {
                 var posMask = curlevel.getCellInto(posIndex, _o12);
                 for (var k = 0; k < state.objectCount; k++) {
                     if (posMask.get(k) != 0) {
+                        if (typeof spriteLayerCovers === 'function' && spriteLayerCovers(k)) {
+                            if (typeof spriteLayerDrawStationary === 'function') {
+                                spriteLayerDrawStationary(k, i, j, mini, minj);
+                            }
+                            continue;
+                        }
                         var sprite = spriteimages[k];
                         ctx.drawImage(sprite, xoffset + (i - mini) * cellwidth, yoffset + (j - minj) * cellheight);
                     }
                 }
             }
+        }
+
+        if (typeof spriteLayerDraw === 'function') {
+            spriteLayerDraw(mini, minj);
         }
 
         // In level editor with flickscreen, draw grid lines at screen boundaries (#1106)

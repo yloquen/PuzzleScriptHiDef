@@ -536,6 +536,9 @@ function drawMessageScreen() {
 let loadedLevelSeed = 0;
 
 function loadLevelFromLevelDat(state, leveldat, randomseed, clearinputhistory) {
+	if (typeof spriteLayerSnap === 'function') {
+		spriteLayerSnap();
+	}
 	if (!randomseed) {
 		randomseed = (Math.random() + Date.now()).toString();
 	}
@@ -912,6 +915,10 @@ function setGameState(_state, command, randomseed) {
 		killAudioButton();
 	} else {
 		showAudioButton();
+	}
+
+	if (typeof spriteLayerBind === 'function') {
+		spriteLayerBind();
 	}
 
 }
@@ -1390,6 +1397,9 @@ function repositionEntitiesOnLayer(positionIndex, layer, dirMask) {
 
 	level.setCell(positionIndex, sourceMask);
 	level.setCell(targetIndex, targetMask);
+	if (typeof spriteLayerNoteMove === 'function') {
+		spriteLayerNoteMove(tx, ty, dx, dy, layer);
+	}
 
 	let colIndex = (targetIndex / level.height) | 0;
 	let rowIndex = (targetIndex % level.height);
@@ -2664,6 +2674,18 @@ let sfxDestroyMask = null;
 
 /* returns a bool indicating if anything changed */
 function processInput(dir, dontDoWin, dontModify) {
+	const suspendSpriteNotes = !!dontModify && typeof spriteLayerSuspendMoveNotes === 'function';
+	if (suspendSpriteNotes) {
+		spriteLayerSuspendMoveNotes(true);
+	} else if (!dontModify && typeof spriteLayerClearMoveNotes === 'function') {
+		spriteLayerClearMoveNotes();
+	}
+	function finishSpriteNotes(value) {
+		if (suspendSpriteNotes) {
+			spriteLayerSuspendMoveNotes(false);
+		}
+		return value;
+	}
 	againing = false;
 
 	let bak = backupLevel();
@@ -2739,6 +2761,9 @@ function processInput(dir, dontDoWin, dontModify) {
 
 		if (shouldUndo) {
 			rigidloop = true;
+			if (typeof spriteLayerClearMoveNotes === 'function') {
+				spriteLayerClearMoveNotes();
+			}
 
 			// trackback
 			if (IDE) {
@@ -2815,7 +2840,7 @@ function processInput(dir, dontDoWin, dontModify) {
 			messagetext = "";
 			textMode = false;
 			tick_lazy_function_generation(false);
-			return false;
+			return finishSpriteNotes(false);
 		}
 	}
 
@@ -2829,7 +2854,7 @@ function processInput(dir, dontDoWin, dontModify) {
 		againing = false;
 	}
 
-	return modified;
+	return finishSpriteNotes(modified);
 }
 
 function playSounds(seedsToPlay_CantMove, seedsToPlay_CanMove, sfx_CreationMasks, sfx_DestructionMasks, sfxCreateMask, sfxDestroyMask) {
@@ -3170,6 +3195,9 @@ function nextLevel() {
 }
 
 function goToTitleScreen() {
+	if (typeof spriteLayerSnap === 'function') {
+		spriteLayerSnap();
+	}
 	againing = false;
 	messagetext = "";
 	titleScreen = true;

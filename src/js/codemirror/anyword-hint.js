@@ -31,6 +31,7 @@
             ["require_player_movement", ""],
             ["run_rules_on_level_start", ""],
             ["scanline", ""],
+            ["sprite", "Player assets/player.png"],
             ["text_color", "orange"],
             ["throttle_movement", ""],
             ["title", "My Amazing Puzzle Game"],

@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "start": "node scripts/start-server.js"
+  },
   "dependencies": {
     "compress-images": "^2.0.5",
     "concat": "^1.0.3",
