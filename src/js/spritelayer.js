@@ -4,7 +4,7 @@
 //
 // Prelude, one line per clip:
 //   sprite Player assets/player.png
-//   sprite Player assets/player.png frame=16 frames=4 anim=walk rows=up,left,down,right
+//   sprite Player assets/player.png frame=16 frames=4 anim=walk
 //   sprite Player assets/player_idle.png anim=idle frames=3 scale=2
 //   sprite SWizard assets/wizard_idle.png anim=idle frames=1 bright=0.5
 //
@@ -20,11 +20,10 @@
 // slide and cycles frames. idle plays while standing, when that clip has
 // been loaded; otherwise the first walk frame is used. still is one picture:
 // it slides, and it does not cycle or flip.
-// rows is the top-to-bottom order of a directional sheet. Engine directions
-// are up, left, down, right. One row is used for every direction.
+// An animated sheet is one row of right-facing frames, 16 pixels tall.
+// Moving left mirrors that row. Moving up or down keeps the last side.
 
 const SPRITE_LAYER_DEFAULT_FRAME = 16;
-const SPRITE_LAYER_DEFAULT_ROWS = ['up', 'left', 'down', 'right'];
 const SPRITE_LAYER_ENGINE_DIRECTIONS = ['up', 'left', 'down', 'right'];
 // How long each sheet frame stays up. The slide lasts this long times the
 // frame count, so a 4-frame walk is 200ms.
@@ -78,7 +77,7 @@ function spriteLayerBind() {
             frameLimit: link.frames > 0 ? link.frames : 0,
             scale: link.scale > 0 ? link.scale : 1,
             bright: link.bright >= 0 ? link.bright : 1,
-            directionRows: (link.directionRows && link.directionRows.length > 0) ? link.directionRows : SPRITE_LAYER_DEFAULT_ROWS.slice(),
+            directionRows: (link.directionRows && link.directionRows.length > 0) ? link.directionRows : null,
             static: link.animation === SPRITE_LAYER_STILL,
             image: null,
             columns: 0,
@@ -173,7 +172,7 @@ function spriteFrameHoldMs(anim) {
 
 function directionRowsToIndex(rowOrder, rowCount) {
     const map = [0, 0, 0, 0];
-    if (rowCount <= 1) {
+    if (!rowOrder || rowCount <= 1) {
         return map;
     }
     for (let dir = 0; dir < SPRITE_LAYER_ENGINE_DIRECTIONS.length; dir++) {
@@ -499,21 +498,35 @@ function drawStillSprite(entry, x, y, mini, minj) {
 }
 
 function blitSpriteFrame(anim, facing, frame, gridX, gridY, mini, minj) {
-    // Facing selects a row in the sheet. Left and right are drawn from
-    // those rows, not mirrored. A walk up or down keeps the last side.
-    // A teleport turns to face the jump, including up and down.
+    // The sheet faces right. Left mirrors it. Up and down keep that side.
+    // rows= on the prelude line selects a direction row instead of mirroring.
     let row = 0;
-    if (!anim.static && anim.rows > 1 && anim.directionToRow) {
+    let flip = false;
+    if (!anim.static && anim.directionRows && anim.rows > 1 && anim.directionToRow) {
         row = anim.directionToRow[facing];
         if (row === undefined || row >= anim.rows) {
             row = 0;
         }
+    } else if (!anim.static && facing === 1) {
+        flip = true;
     }
     if (frame < 0) {
         frame = 0;
     }
     const px = xoffset + (gridX - mini) * cellwidth;
     const py = yoffset + (gridY - minj) * cellheight;
+    if (flip) {
+        ctx.save();
+        ctx.translate(px + cellwidth, py);
+        ctx.scale(-1, 1);
+        ctx.drawImage(
+            anim.image,
+            frame * anim.frameWidth, row * anim.frameHeight, anim.frameWidth, anim.frameHeight,
+            0, 0, cellwidth, cellheight
+        );
+        ctx.restore();
+        return;
+    }
     ctx.drawImage(
         anim.image,
         frame * anim.frameWidth, row * anim.frameHeight, anim.frameWidth, anim.frameHeight,
@@ -733,7 +746,12 @@ function updateFacing(entry, from, to, teleport) {
         return;
     }
     const dir = dirFromDelta(from, to);
-    if (teleport || dir === 1 || dir === 3) {
+    const usesRows = shown.directionRows && shown.rows > 1;
+    if (usesRows && teleport) {
+        entry.facing = dir;
+        return;
+    }
+    if (dir === 1 || dir === 3) {
         entry.facing = dir;
     }
 }
