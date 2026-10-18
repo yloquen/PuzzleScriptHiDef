@@ -991,6 +991,9 @@ function update() {
 	}
 	if (typeof spriteLayerIsSliding === 'function' && spriteLayerIsSliding()) {
 		if (!spriteSlideFinished) {
+			if (typeof spriteLayerAdvanceIdle === 'function') {
+				spriteLayerAdvanceIdle(deltatime, false);
+			}
 			redraw();
 		}
 	} else if (spriteSlideFinished) {

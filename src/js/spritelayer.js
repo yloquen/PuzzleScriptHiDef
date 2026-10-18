@@ -8,6 +8,8 @@
 //   sprite Player assets/player_idle.png anim=idle frames=3 scale=2
 //   sprite SWizard assets/wizard_idle.png anim=idle frames=1 bright=0.5
 //
+//   sprite Chest assets/chest.png anim=idle frames=4 loop=false
+//
 //   sprite Box assets/box.png anim=still
 //
 // frame is the cell size in the file (16, or 16x32). frames limits how many
@@ -18,7 +20,9 @@
 // half strength. Alpha is unchanged. A walk slide lasts long enough to show
 // every frame at that pace. anim names a clip. walk plays during a one-cell
 // slide and cycles frames. idle plays while standing, when that clip has
-// been loaded; otherwise the first walk frame is used. still is one picture:
+// been loaded; otherwise the first walk frame is used. loop=false plays
+// that idle clip once from the moment the object appears, then holds the
+// last frame. Each copy keeps its own clock. still is one picture:
 // it slides, and it does not cycle or flip.
 // An animated sheet is one row of right-facing frames, 16 pixels tall.
 // Moving left mirrors that row. Moving up or down keeps the last side.
@@ -37,7 +41,6 @@ let spriteLayerGeneration = 0;
 let spriteSlide = null;
 let spriteQueuedDir = -1;
 let spriteLayerProbe = null;
-let spriteIdleTime = 0;
 let spriteStationaryHooked = false;
 // Successful one-cell moves from this turn, recorded before the engine clears them.
 let spriteMoveNotes = [];
@@ -77,6 +80,8 @@ function spriteLayerBind() {
             frameLimit: link.frames > 0 ? link.frames : 0,
             scale: link.scale > 0 ? link.scale : 1,
             bright: link.bright >= 0 ? link.bright : 1,
+            loop: link.loop !== false,
+            playTime: 0,
             directionRows: (link.directionRows && link.directionRows.length > 0) ? link.directionRows : null,
             static: link.animation === SPRITE_LAYER_STILL,
             image: null,
@@ -116,6 +121,7 @@ function loadSpriteAnimation(objectId, link, anim, generation) {
             anim.columns = anim.frameLimit;
         }
         anim.directionToRow = directionRowsToIndex(anim.directionRows, anim.rows);
+        anim.playTime = 0;
         anim.ready = true;
         if (typeof redraw === 'function' && !textMode) {
             redraw();
@@ -355,17 +361,91 @@ function spriteLayerNeedsIdleRedraw() {
             continue;
         }
         const idle = entry.animations[SPRITE_LAYER_IDLE];
-        if (idle && idle.ready && idle.columns > 1) {
+        if (!idle || !idle.ready || !(idle.columns > 1)) {
+            continue;
+        }
+        if (idle.loop !== false) {
             return true;
+        }
+        const cells = cellsWithObject(id);
+        for (let c = 0; c < cells.length; c++) {
+            if (!spriteIdleFinished(idle, spriteIdleCellTime(idle, cells[c]))) {
+                return true;
+            }
         }
     }
     return false;
 }
 
-function spriteLayerAdvanceIdle(dt) {
-    if (dt > 0) {
-        spriteIdleTime += dt;
+function spriteLayerAdvanceIdle(dt, includeLooping) {
+    if (!(dt > 0)) {
+        return;
     }
+    for (let id = 0; id < spriteLayerById.length; id++) {
+        const entry = spriteLayerById[id];
+        if (!entry) {
+            continue;
+        }
+        const idle = entry.animations[SPRITE_LAYER_IDLE];
+        if (!idle || !idle.ready || !(idle.columns > 1)) {
+            continue;
+        }
+        if (idle.loop === false) {
+            spriteNoteIdleCells(idle, cellsWithObject(id), dt);
+            continue;
+        }
+        if (includeLooping !== false) {
+            idle.playTime += dt;
+        }
+    }
+}
+
+function spriteIdleCellTime(anim, cell) {
+    if (!anim.cellPlay || !cell) {
+        return 0;
+    }
+    const time = anim.cellPlay[cell.x + ',' + cell.y];
+    return time === undefined ? 0 : time;
+}
+
+function spriteNoteIdleCells(anim, cells, dt) {
+    const next = {};
+    let step = dt > 0 ? dt : 0;
+    const hold = spriteFrameHoldMs(anim);
+    if (step > hold) {
+        step = hold;
+    }
+    for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        const key = cell.x + ',' + cell.y;
+        let time = spriteIdleCellTime(anim, cell);
+        if (step > 0 && !spriteIdleFinished(anim, time)) {
+            time += step;
+        }
+        next[key] = time;
+    }
+    anim.cellPlay = next;
+}
+
+function spriteIdleFrame(anim, playTime) {
+    const time = playTime === undefined ? anim.playTime : playTime;
+    const hold = spriteFrameHoldMs(anim);
+    let index = Math.floor(time / hold);
+    if (!(index >= 0)) {
+        index = 0;
+    }
+    if (anim.loop === false) {
+        return index >= anim.columns ? anim.columns - 1 : index;
+    }
+    return index % anim.columns;
+}
+
+function spriteIdleFinished(anim, playTime) {
+    if (!anim || anim.loop !== false || !(anim.columns > 1)) {
+        return false;
+    }
+    const time = playTime === undefined ? anim.playTime : playTime;
+    return time >= anim.columns * spriteFrameHoldMs(anim);
 }
 
 function spriteLayerAdvance(dt) {
@@ -492,7 +572,8 @@ function drawStillSprite(entry, x, y, mini, minj) {
     }
     let frame = 0;
     if (anim === entry.animations[SPRITE_LAYER_IDLE] && anim.columns > 1) {
-        frame = Math.floor(spriteIdleTime / spriteFrameHoldMs(anim)) % anim.columns;
+        const time = anim.loop === false ? spriteIdleCellTime(anim, { x: x, y: y }) : anim.playTime;
+        frame = spriteIdleFrame(anim, time);
     }
     blitSpriteFrame(anim, entry.facing, frame, x, y, mini, minj);
 }

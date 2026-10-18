@@ -36,6 +36,7 @@ Frames run left to right on one row, 16 pixels tall, drawn facing right. Moving 
 | `frames` | whole row | How many columns count as the clip. |
 | `scale` | `1` | Multiplies how long each frame stays up. The base hold is 50ms, so `2` holds each frame for 100ms and `0.5` for 25ms. |
 | `bright` | `1` | Multiplies red, green, and blue. `0.5` draws the same sheet at half strength. Alpha is left alone. |
+| `loop` | `true` | `false` plays an idle clip once from the moment that object appears, then holds the last frame. Each copy plays on its own. `true` repeats it. |
 | `rows` | one right-facing row | Optional direction rows, top to bottom. Without it, left is a mirror of the single row. |
 
 A walk slide lasts long enough to show each of its frames once at that pace. A 4-frame walk at the default scale is 200ms. Holding a direction keeps stepping at that pace, and one further move can be queued during a slide. Several copies of one object, such as a row of crates, each slide one cell.

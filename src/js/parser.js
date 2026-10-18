@@ -112,12 +112,13 @@ function copySpriteLink(link) {
         frames: link.frames,
         scale: link.scale,
         bright: link.bright,
+        loop: link.loop !== false,
         directionRows: link.directionRows ? link.directionRows.slice() : null,
         lineNumber: link.lineNumber
     };
 }
 
-// sprite Player assets/player.png [frame=16|frame=16x16] [frames=4] [scale=1] [bright=1] [anim=walk] [rows=up,left,down,right]
+// sprite Player assets/player.png [frame=16|frame=16x16] [frames=4] [scale=1] [bright=1] [loop=true] [anim=walk] [rows=up,left,down,right]
 // A second line with anim=idle (or any other name) attaches another clip to the same object.
 function parseSpritePreludeLine(state, text) {
     if (!state.spriteLinks) {
@@ -137,6 +138,7 @@ function parseSpritePreludeLine(state, text) {
         frames: 0,
         scale: 1,
         bright: 1,
+        loop: true,
         directionRows: null,
         lineNumber: state.lineNumber
     };
@@ -180,6 +182,15 @@ function parseSpritePreludeLine(state, text) {
                 logWarning('Sprite bright "' + value + '" should be a number that is zero or greater. 1 leaves the colors alone, 0.5 halves each channel.', state.lineNumber);
             } else {
                 link.bright = bright;
+            }
+        } else if (key === 'loop') {
+            const loop = value.toLowerCase();
+            if (loop === 'true' || loop === 'yes' || loop === '1') {
+                link.loop = true;
+            } else if (loop === 'false' || loop === 'no' || loop === '0') {
+                link.loop = false;
+            } else {
+                logWarning('Sprite loop "' + value + '" should be true or false. true repeats the clip, false plays it once and holds the last frame.', state.lineNumber);
             }
         } else if (key === 'rows') {
             const rows = value.toLowerCase().split(',');
