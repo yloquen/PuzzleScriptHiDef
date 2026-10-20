@@ -230,6 +230,12 @@ function spriteLayerQueueDir(dir) {
     }
 }
 
+function spriteLayerClearQueuedDir(dir) {
+    if (dir === undefined || spriteQueuedDir === dir) {
+        spriteQueuedDir = -1;
+    }
+}
+
 function spriteLayerTakeQueuedDir() {
     const dir = spriteQueuedDir;
     spriteQueuedDir = -1;

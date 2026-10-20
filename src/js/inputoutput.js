@@ -514,6 +514,10 @@ function onKeyUp(event) {
 		if (keyRepeatIndex >= index) {
 			keyRepeatIndex--;
 		}
+		const releasedDir = keyCodeToMovementDir(event.keyCode);
+		if (releasedDir >= 0 && !directionStillHeld(releasedDir) && typeof spriteLayerClearQueuedDir === 'function') {
+			spriteLayerClearQueuedDir(releasedDir);
+		}
 	}
 }
 
@@ -521,12 +525,18 @@ function onMyFocus(event) {
 	keybuffer = [];
 	keyRepeatIndex = 0;
 	keyRepeatTimer = 0;
+	if (typeof spriteLayerClearQueuedDir === 'function') {
+		spriteLayerClearQueuedDir();
+	}
 }
 
 function onMyBlur(event) {
 	keybuffer = [];
 	keyRepeatIndex = 0;
 	keyRepeatTimer = 0;
+	if (typeof spriteLayerClearQueuedDir === 'function') {
+		spriteLayerClearQueuedDir();
+	}
 }
 
 let mouseCoordX = 0;
@@ -629,9 +639,14 @@ function pollGamepads() {
 
 			var index = keybuffer.indexOf(gamepadKeys[k]);
 			if(index >= 0) {
+				const released = gamepadKeys[k];
 				keybuffer.splice(index, 1);
 				if(keyRepeatIndex >= index) {
 					keyRepeatIndex--;
+				}
+				const releasedDir = keyCodeToMovementDir(released);
+				if (releasedDir >= 0 && !directionStillHeld(releasedDir) && typeof spriteLayerClearQueuedDir === 'function') {
+					spriteLayerClearQueuedDir(releasedDir);
 				}
 			}
 		}
@@ -983,9 +998,6 @@ function update() {
 			autotick = 0;
 		}
 	}
-	if (!spriteMotionBusy()) {
-		tryFlushSpriteInput();
-	}
 	if (spriteSlideFinished && !spriteMotionBusy() && !againing && !winning && !textMode && !levelEditorOpened) {
 		continueHeldSpriteMove();
 	}
@@ -1081,6 +1093,18 @@ function presentCommittedTurn(dir) {
 	redraw();
 }
 
+function directionStillHeld(dir) {
+	if (dir < 0) {
+		return false;
+	}
+	for (let i = 0; i < keybuffer.length; i++) {
+		if (keyCodeToMovementDir(keybuffer[i]) === dir) {
+			return true;
+		}
+	}
+	return false;
+}
+
 function keyCodeToMovementDir(keyCode) {
 	switch (keyCode) {
 		case 38://up
@@ -1117,26 +1141,17 @@ function heldMovementDir() {
 	return -1;
 }
 
-// A held direction used to wait out key_repeat_interval after every slide,
-// which left the walker standing between steps. The slide itself is the pace.
+// The slide is the pace. A held direction steps again as soon as it ends.
+// A direction released during the slide is dropped, so that step does not fire on arrival.
 function continueHeldSpriteMove() {
-	const dir = heldMovementDir();
-	if (dir < 0) {
-		return;
+	let dir = -1;
+	if (typeof spriteLayerTakeQueuedDir === 'function') {
+		dir = spriteLayerTakeQueuedDir();
 	}
-	pushInput(dir);
-	presentCommittedTurn(dir);
-}
-
-function tryFlushSpriteInput() {
-	if (typeof spriteLayerTakeQueuedDir !== 'function') {
-		return;
+	if (!directionStillHeld(dir)) {
+		dir = heldMovementDir();
 	}
-	if (spriteMotionBusy() || againing || winning || textMode || levelEditorOpened) {
-		return;
-	}
-	const dir = spriteLayerTakeQueuedDir();
-	if (dir < 0) {
+	if (!directionStillHeld(dir)) {
 		return;
 	}
 	pushInput(dir);

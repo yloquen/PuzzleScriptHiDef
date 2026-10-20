@@ -1,19 +1,14 @@
-PuzzleScript
-============
+This is a fork of PuzzleScript (https://www.puzzlescript.net) with 2 main goals:
 
-Open Source HTML5 Puzzle Game Engine
+1. Allow to add sprites that replace default objects (with fallback to original graphics if no sprites are defined).
+2. Keep the game backwards compatible with existing levels.
 
-Try it out at https://www.puzzlescript.net.
+Disclaimers:
+The modifications are coded using AI.
+I'm still experimenting with this so there might be changes.
+Heroes of Sokoban games used as demo with permission by the author Jonah Ostroff.
+----
 
------
-
-If you're interested in recompiling/modifing/hacking the engine, there is [development setup info here](DEVELOPMENT.md).  If you're just interested in learning how to use the engine/make games in it, [the documentation is here](https://www.puzzlescript.net/Documentation/documentation.html).
-
-This is a modification of PuzzleScript aimed at providing a new visual layer that supports animations and sprites.
-The goal is to have it backwards compatible with existing PuzzleScript games.
-All art/animations except the knight are made by me. I can't find information who made the knight so I cannot credit it.
-
------
 
 ## Sprites
 
@@ -39,4 +34,7 @@ Frames run left to right on one row, 16 pixels tall, drawn facing right. Moving 
 | `loop` | `true` | `false` plays an idle clip once from the moment that object appears, then holds the last frame. Each copy plays on its own. `true` repeats it. |
 | `rows` | one right-facing row | Optional direction rows, top to bottom. Without it, left is a mirror of the single row. |
 
-A walk slide lasts long enough to show each of its frames once at that pace. A 4-frame walk at the default scale is 200ms. Holding a direction keeps stepping at that pace, and one further move can be queued during a slide. Several copies of one object, such as a row of crates, each slide one cell.
+A walk slide lasts long enough to show each of its frames once at that pace. A 4-frame walk at the default scale is 200ms. Holding a direction steps again as soon as the slide ends, so the walk keeps going. Letting go during the slide stops on the cell you are entering. Several copies of one object, such as a row of crates, each slide one cell.
+
+While you're editing a game, put the assets in src/assets/... (see PuzzleScriptHiDef demo games for example)
+Sprites are encoded in Base64 when exporting a game, so they are included inside the .html file.

@@ -381,9 +381,9 @@ function exportClick() {
 
 	compile("restart");
 
-	let sourceString = JSON.stringify(sourceCode);
-	
-	buildStandalone(sourceString);
+	inlineSpritePngs(sourceCode).then(function (packed) {
+		buildStandalone(JSON.stringify(packed));
+	});
 }
 
 

@@ -4,6 +4,7 @@
 
 const { execFileSync, spawn } = require('child_process');
 const path = require('path');
+const { inlineStandalone } = require('./inline-standalone');
 
 const PORT = 8000;
 const HOST = '127.0.0.1';
@@ -52,6 +53,7 @@ if (pids.length > 0) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
 }
 
+inlineStandalone(path.join(__dirname, '..'));
 console.log('Serving src at http://' + HOST + ':' + PORT + '/');
 const child = spawn(
     'python',
